@@ -12,12 +12,8 @@ export default function DeliveryDashboard() {
   const [accepting, setAccepting] = useState(null)
 
   useEffect(() => {
-    if (user?.id) {
-      loadAvailable()
-      loadMine()
-    }
+  if (user?.id) loadStore()
   }, [user])
-
   const loadAvailable = async () => {
     const data = await getAvailableOrders()
     setOrders(Array.isArray(data) ? data : [])
@@ -42,7 +38,6 @@ export default function DeliveryDashboard() {
       <style>{globalStyles}</style>
       <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#f5f4f0", minHeight: "100vh" }}>
 
-        {/* HEADER */}
         <div className="app-header">
           <h1>🚴 Delivery</h1>
           <span className="user-tag">{user?.name || user?.email}</span>
@@ -50,7 +45,6 @@ export default function DeliveryDashboard() {
 
         <div className="app-body">
 
-          {/* SIDEBAR */}
           <div className="app-sidebar">
             <div className="sidebar-label">Dashboard</div>
 
