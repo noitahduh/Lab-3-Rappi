@@ -1,4 +1,6 @@
-const API = "http://localhost:3000/api/orders"
+import { API_BASE } from "./config"
+const API = `${API_BASE}/orders`
+
 
 export const getStoreOrders = async (storeId) => {
 

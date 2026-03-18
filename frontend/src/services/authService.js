@@ -1,4 +1,5 @@
-const API = "http://localhost:3000/api/auth"
+import { API_BASE } from "./config"
+const API = `${API_BASE}/auth`
 
 export const register = async (name, email, password, role, storeName) => {
 

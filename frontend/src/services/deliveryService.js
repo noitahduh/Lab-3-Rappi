@@ -1,4 +1,5 @@
-const API = "http://localhost:3000/api/delivery"
+import { API_BASE } from "./config"
+const API = `${API_BASE}/delivery`
 
 export const getAvailableOrders = async () => {
   const res = await fetch(`${API}/available`)
