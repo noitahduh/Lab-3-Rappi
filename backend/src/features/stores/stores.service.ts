@@ -1,5 +1,5 @@
 import sql from '../../db'
-import { v4 as uuidv4 } from 'uuid'
+
 
 export const getStoresService = async () => {
   return await sql`SELECT * FROM stores`
@@ -22,7 +22,7 @@ export const toggleStoreService = async (storeId: string, isOpen: boolean) => {
 }
 
 export const createProductService = async (storeId: string, name: string, price: number) => {
-  const id = uuidv4()
+  const id = crypto.randomUUID()
   const [product] = await sql`
     INSERT INTO products (id, name, price, "storeId")
     VALUES (${id}, ${name}, ${price}, ${storeId})
