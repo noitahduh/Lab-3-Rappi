@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react"
+import { useEffect, useState, useContext, useCallback } from "react"
 import { getAvailableOrders, acceptOrder, getMyDeliveries } from "../../services/deliveryService"
 import { AuthContext } from "../../context/AuthContext"
 import { globalStyles } from "../theme"
@@ -11,21 +11,23 @@ export default function DeliveryDashboard() {
   const [tab, setTab] = useState("available")
   const [accepting, setAccepting] = useState(null)
 
-  useEffect(() => {
-  if (user?.id) {
-    loadAvailable()
-    loadMine()
-  }
-  }, [user])
-  const loadAvailable = async () => {
+  const loadAvailable = useCallback(async () => {
     const data = await getAvailableOrders()
     setOrders(Array.isArray(data) ? data : [])
-  }
+  }, [])
 
-  const loadMine = async () => {
+  const loadMine = useCallback(async () => {
+    if (!user?.id) return
     const data = await getMyDeliveries(user.id)
     setMyOrders(Array.isArray(data) ? data : [])
-  }
+  }, [user])
+
+  useEffect(() => {
+    if (user?.id) {
+      loadAvailable()
+      loadMine()
+    }
+  }, [user, loadAvailable, loadMine])
 
   const handleAccept = async (orderId) => {
     setAccepting(orderId)
@@ -78,10 +80,8 @@ export default function DeliveryDashboard() {
             </div>
           </div>
 
-          {/* MAIN */}
           <div className="app-main">
 
-            {/* AVAILABLE ORDERS */}
             {tab === "available" && (
               <div className="card">
                 <div className="card-header">
@@ -116,7 +116,6 @@ export default function DeliveryDashboard() {
               </div>
             )}
 
-            {/* MY DELIVERIES */}
             {tab === "mine" && (
               <div className="card">
                 <div className="card-header">

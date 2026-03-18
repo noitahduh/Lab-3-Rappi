@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react"
+import { useEffect, useState, useContext, useCallback } from "react"
 import { getStoreInfo, toggleStore, createProduct } from "../../services/storeAdminService"
 import { getStoreProducts } from "../../services/storeService"
 import { getStoreOrders } from "../../services/storeOrdersService"
@@ -11,24 +11,27 @@ export default function StoreDashboard() {
   const [store, setStore] = useState(null)
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
-  const [tab, setTab] = useState("products") 
+  const [tab, setTab] = useState("products")
 
   const [productName, setProductName] = useState("")
   const [productPrice, setProductPrice] = useState("")
   const [addingProduct, setAddingProduct] = useState(false)
 
-  useEffect(() => {
-    if (user?.id) loadStore()
-  }, [user])
+  const loadStore = useCallback(async () => {
+    if (!user?.id) return
 
-  const loadStore = async () => {
     const data = await getStoreInfo(user.id)
     setStore(data)
+
     if (data?.id) {
       const prods = await getStoreProducts(data.id)
       setProducts(Array.isArray(prods) ? prods : [])
     }
-  }
+  }, [user])
+
+  useEffect(() => {
+    if (user?.id) loadStore()
+  }, [user, loadStore])
 
   const handleToggle = async () => {
     if (!store) return
@@ -44,12 +47,18 @@ export default function StoreDashboard() {
   }
 
   const handleAddProduct = async () => {
-    if (!productName || !productPrice) { alert("Fill in name and price"); return }
+    if (!productName || !productPrice) {
+      alert("Fill in name and price")
+      return
+    }
+
     setAddingProduct(true)
     await createProduct(store.id, productName, Number(productPrice))
     setAddingProduct(false)
+
     setProductName("")
     setProductPrice("")
+
     const prods = await getStoreProducts(store.id)
     setProducts(Array.isArray(prods) ? prods : [])
     setTab("products")
@@ -148,14 +157,12 @@ export default function StoreDashboard() {
                   <label className="form-label">Product name</label>
                   <input
                     className="form-input"
-                    placeholder="e.g. Pepperoni Pizza"
                     value={productName}
                     onChange={e => setProductName(e.target.value)}
                   />
                   <label className="form-label">Price</label>
                   <input
                     className="form-input"
-                    placeholder="e.g. 12"
                     type="number"
                     value={productPrice}
                     onChange={e => setProductPrice(e.target.value)}
@@ -164,7 +171,6 @@ export default function StoreDashboard() {
                     className="btn btn-dark"
                     onClick={handleAddProduct}
                     disabled={addingProduct}
-                    style={{ alignSelf: "flex-end" }}
                   >
                     {addingProduct ? "Adding..." : "Add product →"}
                   </button>
@@ -176,7 +182,7 @@ export default function StoreDashboard() {
               <div className="card">
                 <div className="card-header">
                   <span className="card-title">📋 Incoming orders</span>
-                  <button className="btn btn-outline" style={{ padding: "6px 12px", fontSize: 12 }} onClick={loadOrders}>
+                  <button className="btn btn-outline" onClick={loadOrders}>
                     Refresh
                   </button>
                 </div>
