@@ -1,1 +1,1 @@
-export const API_BASE = "https://labrappi.vercel.app"
+export const API_BASE = "https://labrappi.vercel.app/api"
