@@ -1,5 +1,4 @@
 import sql from '../../db'
-import { v4 as uuidv4 } from 'uuid'
 import { OrderItem } from './orders.types'
 
 export const createOrderService = async (
@@ -7,7 +6,7 @@ export const createOrderService = async (
   storeId: string,
   items: OrderItem[]
 ) => {
-  const orderId = uuidv4()
+  const orderId = crypto.randomUUID()
 
   const [order] = await sql`
     INSERT INTO orders (id, "consumerId", "storeId", status)
@@ -16,7 +15,7 @@ export const createOrderService = async (
   `
 
   for (const item of items) {
-    const itemId = uuidv4()
+    const itemId = crypto.randomUUID()
     await sql`
       INSERT INTO order_items (id, "orderId", "productId", quantity)
       VALUES (${itemId}, ${orderId}, ${item.productId}, ${item.quantity})

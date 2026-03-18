@@ -1,6 +1,5 @@
 import sql from '../../db'
 import { CreateUserInput, AuthenticateUserInput } from './auth.types'
-import { v4 as uuidv4 } from 'uuid'
 
 export const createUserService = async ({
   name,
@@ -15,7 +14,7 @@ export const createUserService = async ({
   `
   if (existing) throw new Error('User already exists')
 
-  const id = uuidv4()
+  const id = crypto.randomUUID()
 
   const [user] = await sql`
     INSERT INTO users (id, name, email, password, role)
@@ -24,7 +23,7 @@ export const createUserService = async ({
   `
 
   if (role === 'store' && storeName) {
-    const storeId = uuidv4()
+    const storeId = crypto.randomUUID()
     await sql`
       INSERT INTO stores (id, name, "isOpen", "userId")
       VALUES (${storeId}, ${storeName}, false, ${id})
