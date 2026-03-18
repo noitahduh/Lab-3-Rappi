@@ -12,7 +12,10 @@ export default function DeliveryDashboard() {
   const [accepting, setAccepting] = useState(null)
 
   useEffect(() => {
-  if (user?.id) loadStore()
+  if (user?.id) {
+    loadAvailable()
+    loadMine()
+  }
   }, [user])
   const loadAvailable = async () => {
     const data = await getAvailableOrders()
