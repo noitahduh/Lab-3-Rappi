@@ -1,5 +1,8 @@
-import sql from '../../db'
-import { acceptOrderService, getAvailableOrdersService, getOrdersByDeliveryService } from '../orders/orders.service'
+import {
+  acceptOrderService,
+  getAvailableOrdersService,
+  getOrdersByDeliveryService
+} from '../orders/orders.service'
 
 export const getAvailableOrdersForDeliveryService = async () => {
   return await getAvailableOrdersService()
