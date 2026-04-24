@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getAvailableOrders, acceptOrder, getMyDeliveries } from '../../services/deliveryService'
+import { getOrderById } from '../../services/orderService'
 import { AuthContext } from '../../context/AuthContext'
 import { globalStyles } from '../theme'
 import { API_BASE } from '../../services/config'
@@ -14,18 +15,28 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const STEP = 0.0001 
+// Ícono rojo para el destino
+const destinationIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+})
+
+const STEP = 0.0001
 
 export default function DeliveryDashboard() {
   const { user } = useContext(AuthContext)
 
-  const [orders, setOrders]     = useState([])
-  const [myOrders, setMyOrders] = useState([])
-  const [tab, setTab]           = useState('available')
+  const [orders, setOrders]       = useState([])
+  const [myOrders, setMyOrders]   = useState([])
+  const [tab, setTab]             = useState('available')
   const [accepting, setAccepting] = useState(null)
 
   const [activeOrderId, setActiveOrderId] = useState(null)
   const [position, setPosition]           = useState({ lat: 4.711, lng: -74.0721 })
+  const [destination, setDestination]     = useState(null) // coordenadas del destino de la orden
   const [orderStatus, setOrderStatus]     = useState(null)
 
   const pendingPosition  = useRef(null)
@@ -49,12 +60,9 @@ export default function DeliveryDashboard() {
     if (user?.id) { loadAvailable(); loadMine() }
   }, [user, loadAvailable, loadMine])
 
-
   const throttledSendPosition = useCallback((orderId, pos) => {
     pendingPosition.current = pos
-
-    if (throttleTimer.current) return 
-
+    if (throttleTimer.current) return
     throttleTimer.current = setTimeout(() => {
       if (pendingPosition.current) {
         sendPosition(orderId, pendingPosition.current.lat, pendingPosition.current.lng)
@@ -67,7 +75,6 @@ export default function DeliveryDashboard() {
   useEffect(() => {
     const handleKey = (e) => {
       if (!activeOrderIdRef.current) return
-
       const deltas = {
         ArrowUp:    { lat: STEP,  lng: 0 },
         ArrowDown:  { lat: -STEP, lng: 0 },
@@ -77,14 +84,12 @@ export default function DeliveryDashboard() {
       const delta = deltas[e.key]
       if (!delta) return
       e.preventDefault()
-
       setPosition(prev => {
         const next = { lat: prev.lat + delta.lat, lng: prev.lng + delta.lng }
         throttledSendPosition(activeOrderIdRef.current, next)
         return next
       })
     }
-
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [throttledSendPosition])
@@ -112,10 +117,21 @@ export default function DeliveryDashboard() {
     setActiveOrderId(orderId)
     setOrderStatus('En entrega')
     setTab('mine')
+    // Cargar destino de la orden recién aceptada
+    loadOrderDestination(orderId)
   }
 
-  const startDelivery = (orderId) => {
+  // Carga las coordenadas de destino de la orden desde el backend
+  const loadOrderDestination = async (orderId) => {
+    const order = await getOrderById(orderId)
+    if (order?.destination_lat && order?.destination_lng) {
+      setDestination({ lat: order.destination_lat, lng: order.destination_lng })
+    }
+  }
+
+  const startDelivery = async (orderId) => {
     setActiveOrderId(orderId)
+    await loadOrderDestination(orderId)
     setTab('map')
   }
 
@@ -186,11 +202,7 @@ export default function DeliveryDashboard() {
               <div className="card">
                 <div className="card-header">
                   <span className="card-title">📍 Available orders</span>
-                  <button
-                    className="btn btn-outline"
-                    style={{ padding: '6px 12px', fontSize: 12 }}
-                    onClick={loadAvailable}
-                  >
+                  <button className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12 }} onClick={loadAvailable}>
                     Refresh
                   </button>
                 </div>
@@ -224,11 +236,7 @@ export default function DeliveryDashboard() {
               <div className="card">
                 <div className="card-header">
                   <span className="card-title">🗺️ My deliveries</span>
-                  <button
-                    className="btn btn-outline"
-                    style={{ padding: '6px 12px', fontSize: 12 }}
-                    onClick={loadMine}
-                  >
+                  <button className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12 }} onClick={loadMine}>
                     Refresh
                   </button>
                 </div>
@@ -264,9 +272,7 @@ export default function DeliveryDashboard() {
                 <div className="card-header">
                   <span className="card-title">🗺️ Navigation</span>
                   <span className="card-meta">
-                    {orderStatus === 'Entregado'
-                      ? '✅ Delivered!'
-                      : 'Use arrow keys to move'}
+                    {orderStatus === 'Entregado' ? '✅ Delivered!' : 'Use arrow keys to move'}
                   </span>
                 </div>
 
@@ -277,18 +283,21 @@ export default function DeliveryDashboard() {
                 ) : (
                   <>
                     <div style={{ padding: 12 }}>
-                      <MapContainer
-                        center={[position.lat, position.lng]}
-                        zoom={16}
-                        style={{ height: 400, borderRadius: 8 }}
-                      >
+                      <MapContainer center={[position.lat, position.lng]} zoom={16} style={{ height: 400, borderRadius: 8 }}>
                         <TileLayer
                           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                           attribution='© OpenStreetMap contributors'
                         />
+                        {/* Marcador azul: posición actual del domiciliario */}
                         <Marker position={[position.lat, position.lng]}>
                           <Popup>🚴 You are here</Popup>
                         </Marker>
+                        {/* Marcador rojo: destino del pedido */}
+                        {destination && (
+                          <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
+                            <Popup>📍 Delivery destination</Popup>
+                          </Marker>
+                        )}
                       </MapContainer>
                     </div>
 
@@ -301,26 +310,10 @@ export default function DeliveryDashboard() {
                       justifyContent: 'center',
                       marginBottom: 16
                     }}>
-                      <button
-                        className="btn btn-outline"
-                        style={{ gridRow: 1, gridColumn: 2, fontSize: 18, borderRadius: 8 }}
-                        onClick={() => dispatchArrow('ArrowUp')}
-                      >↑</button>
-                      <button
-                        className="btn btn-outline"
-                        style={{ gridRow: 2, gridColumn: 1, fontSize: 18, borderRadius: 8 }}
-                        onClick={() => dispatchArrow('ArrowLeft')}
-                      >←</button>
-                      <button
-                        className="btn btn-outline"
-                        style={{ gridRow: 2, gridColumn: 2, fontSize: 18, borderRadius: 8 }}
-                        onClick={() => dispatchArrow('ArrowDown')}
-                      >↓</button>
-                      <button
-                        className="btn btn-outline"
-                        style={{ gridRow: 2, gridColumn: 3, fontSize: 18, borderRadius: 8 }}
-                        onClick={() => dispatchArrow('ArrowRight')}
-                      >→</button>
+                      <button className="btn btn-outline" style={{ gridRow: 1, gridColumn: 2, fontSize: 18, borderRadius: 8 }} onClick={() => dispatchArrow('ArrowUp')}>↑</button>
+                      <button className="btn btn-outline" style={{ gridRow: 2, gridColumn: 1, fontSize: 18, borderRadius: 8 }} onClick={() => dispatchArrow('ArrowLeft')}>←</button>
+                      <button className="btn btn-outline" style={{ gridRow: 2, gridColumn: 2, fontSize: 18, borderRadius: 8 }} onClick={() => dispatchArrow('ArrowDown')}>↓</button>
+                      <button className="btn btn-outline" style={{ gridRow: 2, gridColumn: 3, fontSize: 18, borderRadius: 8 }} onClick={() => dispatchArrow('ArrowRight')}>→</button>
                     </div>
 
                     <p style={{ textAlign: 'center', fontSize: 12, color: '#999', paddingBottom: 16 }}>

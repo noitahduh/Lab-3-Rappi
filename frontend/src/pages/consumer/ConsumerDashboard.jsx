@@ -23,18 +23,14 @@ const deliveryIcon = new L.Icon({
   popupAnchor: [1, -34],
 })
 
-
 function DestinationPicker({ onPick }) {
   useMapEvents({
-    click(e) {
-      onPick(e.latlng)
-    }
+    click(e) { onPick(e.latlng) }
   })
   return null
 }
 
-const DEFAULT_CENTER = [4.711, -74.0721] 
-
+const DEFAULT_CENTER = [4.711, -74.0721]
 const PRODUCT_EMOJIS = ['🍕','🍔','🌮','🍜','🥗','🍣','☕','🧁','🎂','🥤','🌯','🥚']
 const getEmoji = (i) => PRODUCT_EMOJIS[i % PRODUCT_EMOJIS.length]
 
@@ -89,10 +85,10 @@ export default function ConsumerDashboard() {
   }
 
   const handleOrder = async () => {
-    if (!user)            { alert('User not logged in'); return }
-    if (!selectedStore)   { alert('Select a store first'); return }
-    if (cart.length === 0){ alert('Cart is empty'); return }
-    if (!destination)     { alert('Click on the map to set your delivery destination'); return }
+    if (!user)             { alert('User not logged in'); return }
+    if (!selectedStore)    { alert('Select a store first'); return }
+    if (cart.length === 0) { alert('Cart is empty'); return }
+    if (!destination)      { alert('Click on the map to set your delivery destination'); return }
 
     setLoading(true)
     const items = cart.map(item => ({ productId: item.productId, quantity: item.quantity }))
@@ -109,25 +105,47 @@ export default function ConsumerDashboard() {
     subscribeToOrder(data.id)
   }
 
-
+ 
   const subscribeToOrder = (orderId) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current)
 
     const channel = supabase
-      .channel(`order:${orderId}`)
-      .on('broadcast', { event: 'position-update' }, ({ payload }) => {
-        setDeliveryPos({ lat: payload.lat, lng: payload.lng })
-        if (payload.status === 'Entregado') {
-          setDelivered(true)
+      .channel(`consumer-order-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`
+        },
+        (payload) => {
+         console.log('REALTIME PAYLOAD:', JSON.stringify(payload.new))
+        const updated = payload.new
+
+
+
+          if (updated.delivery_position) {
+            const coords = updated.delivery_position.coordinates
+            if (coords) {
+              setDeliveryPos({ lat: coords[1], lng: coords[0] })
+            }
+          }
+
+          if (updated.status === 'Entregado') {
+            setDelivered(true)
+          }
         }
-      })
-      .subscribe()
+      )
+     .subscribe((status) => {
+  console.log('SUPABASE CHANNEL STATUS:', status)
+})
 
     channelRef.current = channel
   }
 
   const loadOrders = async () => {
-    if (!user?.id) return 
+    if (!user?.id) return
     const data = await getOrders(user.id)
     setOrders(Array.isArray(data) ? data : [])
   }
@@ -284,11 +302,7 @@ export default function ConsumerDashboard() {
                 onClick={handleOrder}
                 disabled={cart.length === 0 || loading || !destination}
               >
-                {loading
-                  ? 'Placing order...'
-                  : !destination
-                  ? 'Set destination first'
-                  : 'Place Order →'}
+                {loading ? 'Placing order...' : !destination ? 'Set destination first' : 'Place Order →'}
               </button>
             </div>
 
