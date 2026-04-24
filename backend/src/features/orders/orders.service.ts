@@ -87,14 +87,13 @@ export const updateDeliveryPositionService = async (
     newStatus = OrderStatus.DELIVERED
   }
 
-  // Broadcast con httpSend + removeChannel — patrón del repo maps
-  const channel = supabase.channel(`order:${orderId}`)
-  await channel.httpSend('position-update', {
-    lat,
-    lng,
-    status: newStatus
+await supabase
+  .channel(`order:${orderId}`)
+  .send({
+    type: 'broadcast',
+    event: 'position-update',
+    payload: { lat, lng, status: newStatus }
   })
-  supabase.removeChannel(channel)
 
   return { ...result, status: newStatus }
 }

@@ -127,6 +127,7 @@ export default function ConsumerDashboard() {
   }
 
   const loadOrders = async () => {
+    if (!user?.id) return 
     const data = await getOrders(user.id)
     setOrders(Array.isArray(data) ? data : [])
   }
