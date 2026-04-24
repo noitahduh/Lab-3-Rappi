@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getStores, getStoreProducts } from '../../services/storeService'
-import { createOrder, getOrders } from '../../services/orderService'
+import { createOrder, getOrders, getOrderById } from '../../services/orderService'
 import { supabase } from '../../services/supabaseClient'
 import { AuthContext } from '../../context/AuthContext'
 import { globalStyles } from '../theme'
@@ -106,41 +106,22 @@ export default function ConsumerDashboard() {
   }
 
  
- const subscribeToOrder = (orderId) => {
-  // Limpiar canal anterior
+const subscribeToOrder = (orderId) => {
   if (channelRef.current) {
     supabase.removeChannel(channelRef.current)
     channelRef.current = null
   }
 
-  // Pequeño delay para que Supabase procese el removeChannel antes de crear uno nuevo
   setTimeout(() => {
     const channel = supabase
-      .channel(`consumer-order-${orderId}-${Date.now()}`) // nombre único para evitar conflictos
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${orderId}`
-        },
-        (payload) => {
-          console.log('REALTIME PAYLOAD:', JSON.stringify(payload.new))
-          const updated = payload.new
-          if (updated.delivery_position) {
-            const coords = updated.delivery_position.coordinates
-            if (coords) {
-              setDeliveryPos({ lat: coords[1], lng: coords[0] })
-            }
-          }
-          if (updated.status === 'Entregado') {
-            setDelivered(true)
-          }
-        }
-      )
+      .channel(`order:${orderId}`)
+      .on('broadcast', { event: 'position-update' }, ({ payload }) => {
+        console.log('BROADCAST PAYLOAD:', payload)
+        setDeliveryPos({ lat: payload.lat, lng: payload.lng })
+        if (payload.status === 'Entregado') setDelivered(true)
+      })
       .subscribe((status) => {
-        console.log('SUPABASE CHANNEL STATUS:', status)
+        console.log('CHANNEL STATUS:', status)
       })
 
     channelRef.current = channel
@@ -335,15 +316,19 @@ export default function ConsumerDashboard() {
                       </span>
                       {order.status !== 'Entregado' && (
                         <button
-                          className="btn btn-outline"
-                          style={{ padding: '4px 10px', fontSize: 11 }}
-                          onClick={() => {
-                            setActiveOrder(order.id)
-                            subscribeToOrder(order.id)
-                          }}
-                        >
-                          Track
-                        </button>
+                        className="btn btn-outline"
+                        style={{ padding: '4px 10px', fontSize: 11 }}
+                        onClick={async () => {
+                        setActiveOrder(order.id)
+                        subscribeToOrder(order.id)
+                        const orderData = await getOrderById(order.id)
+                        if (orderData?.destination_lat && orderData?.destination_lng) {
+                        setDestination({ lat: orderData.destination_lat, lng: orderData.destination_lng })
+    }
+  }}
+>
+  Track
+</button>
                       )}
                     </div>
                   </div>

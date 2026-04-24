@@ -87,13 +87,21 @@ export const updateDeliveryPositionService = async (
     newStatus = OrderStatus.DELIVERED
   }
 
-await supabase
-  .channel(`order:${orderId}`)
-  .send({
-    type: 'broadcast',
-    event: 'position-update',
-    payload: { lat, lng, status: newStatus }
+await fetch(`${process.env.SUPABASE_URL}/realtime/v1/api/broadcast`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`
+  },
+  body: JSON.stringify({
+    messages: [{
+      topic: `realtime:order:${orderId}`,
+      event: 'position-update',
+      payload: { lat, lng, status: newStatus }
+    }]
   })
+})
 
   return { ...result, status: newStatus }
 }
