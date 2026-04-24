@@ -106,11 +106,17 @@ export default function ConsumerDashboard() {
   }
 
  
-  const subscribeToOrder = (orderId) => {
-    if (channelRef.current) supabase.removeChannel(channelRef.current)
+ const subscribeToOrder = (orderId) => {
+  // Limpiar canal anterior
+  if (channelRef.current) {
+    supabase.removeChannel(channelRef.current)
+    channelRef.current = null
+  }
 
+  // Pequeño delay para que Supabase procese el removeChannel antes de crear uno nuevo
+  setTimeout(() => {
     const channel = supabase
-      .channel(`consumer-order-${orderId}`)
+      .channel(`consumer-order-${orderId}-${Date.now()}`) // nombre único para evitar conflictos
       .on(
         'postgres_changes',
         {
@@ -120,29 +126,26 @@ export default function ConsumerDashboard() {
           filter: `id=eq.${orderId}`
         },
         (payload) => {
-         console.log('REALTIME PAYLOAD:', JSON.stringify(payload.new))
-        const updated = payload.new
-
-
-
+          console.log('REALTIME PAYLOAD:', JSON.stringify(payload.new))
+          const updated = payload.new
           if (updated.delivery_position) {
             const coords = updated.delivery_position.coordinates
             if (coords) {
               setDeliveryPos({ lat: coords[1], lng: coords[0] })
             }
           }
-
           if (updated.status === 'Entregado') {
             setDelivered(true)
           }
         }
       )
-     .subscribe((status) => {
-  console.log('SUPABASE CHANNEL STATUS:', status)
-})
+      .subscribe((status) => {
+        console.log('SUPABASE CHANNEL STATUS:', status)
+      })
 
     channelRef.current = channel
-  }
+  }, 300)
+}
 
   const loadOrders = async () => {
     if (!user?.id) return
