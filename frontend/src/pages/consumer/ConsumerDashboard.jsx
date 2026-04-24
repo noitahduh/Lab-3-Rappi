@@ -4,7 +4,6 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getStores, getStoreProducts } from '../../services/storeService'
 import { createOrder, getOrders, getOrderById } from '../../services/orderService'
-import { supabase } from '../../services/supabaseClient'
 import { AuthContext } from '../../context/AuthContext'
 import { globalStyles } from '../theme'
 
@@ -49,12 +48,12 @@ export default function ConsumerDashboard() {
   const [deliveryPos, setDeliveryPos]     = useState(null)
   const [delivered, setDelivered]         = useState(false)
 
-  const channelRef = useRef(null)
+  const pollingRef = useRef(null)
 
   useEffect(() => {
     loadStores()
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current)
+      if (pollingRef.current) clearInterval(pollingRef.current)
     }
   }, [])
 
@@ -102,31 +101,34 @@ export default function ConsumerDashboard() {
     setDeliveryPos(null)
     setDelivered(false)
     setActiveOrder(data.id)
-    subscribeToOrder(data.id)
+    startPolling(data.id)
   }
 
- 
-const subscribeToOrder = (orderId) => {
-  if (channelRef.current) {
-    supabase.removeChannel(channelRef.current)
-    channelRef.current = null
+  // Polling cada 2 segundos — llama getOrderById y actualiza posición y destino
+  const startPolling = (orderId) => {
+    if (pollingRef.current) clearInterval(pollingRef.current)
+
+    const interval = setInterval(async () => {
+      const order = await getOrderById(orderId)
+      if (!order) return
+
+      if (order.delivery_lat && order.delivery_lng) {
+        setDeliveryPos({ lat: Number(order.delivery_lat), lng: Number(order.delivery_lng) })
+      }
+
+      if (order.destination_lat && order.destination_lng) {
+        setDestination({ lat: Number(order.destination_lat), lng: Number(order.destination_lng) })
+      }
+
+      if (order.status === 'Entregado') {
+        setDelivered(true)
+        clearInterval(interval)
+        pollingRef.current = null
+      }
+    }, 2000)
+
+    pollingRef.current = interval
   }
-
-  setTimeout(() => {
-    const channel = supabase
-      .channel(`order:${orderId}`)
-      .on('broadcast', { event: 'position-update' }, ({ payload }) => {
-        console.log('BROADCAST PAYLOAD:', payload)
-        setDeliveryPos({ lat: payload.lat, lng: payload.lng })
-        if (payload.status === 'Entregado') setDelivered(true)
-      })
-      .subscribe((status) => {
-        console.log('CHANNEL STATUS:', status)
-      })
-
-    channelRef.current = channel
-  }, 300)
-}
 
   const loadOrders = async () => {
     if (!user?.id) return
@@ -316,19 +318,17 @@ const subscribeToOrder = (orderId) => {
                       </span>
                       {order.status !== 'Entregado' && (
                         <button
-                        className="btn btn-outline"
-                        style={{ padding: '4px 10px', fontSize: 11 }}
-                        onClick={async () => {
-                        setActiveOrder(order.id)
-                        subscribeToOrder(order.id)
-                        const orderData = await getOrderById(order.id)
-                        if (orderData?.destination_lat && orderData?.destination_lng) {
-                        setDestination({ lat: orderData.destination_lat, lng: orderData.destination_lng })
-    }
-  }}
->
-  Track
-</button>
+                          className="btn btn-outline"
+                          style={{ padding: '4px 10px', fontSize: 11 }}
+                          onClick={() => {
+                            setActiveOrder(order.id)
+                            setDeliveryPos(null)
+                            setDelivered(false)
+                            startPolling(order.id)
+                          }}
+                        >
+                          Track
+                        </button>
                       )}
                     </div>
                   </div>
