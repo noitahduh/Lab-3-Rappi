@@ -22,10 +22,22 @@ const deliveryIcon = new L.Icon({
   popupAnchor: [1, -34],
 })
 
+// Permite seleccionar destino con click en el mapa
 function DestinationPicker({ onPick }) {
   useMapEvents({
     click(e) { onPick(e.latlng) }
   })
+  return null
+}
+
+// Re-centra el mapa automáticamente cuando el repartidor se mueve
+function MapAutoCenter({ position }) {
+  const map = useMapEvents({})
+  useEffect(() => {
+    if (position) {
+      map.setView([position.lat, position.lng], map.getZoom())
+    }
+  }, [position, map])
   return null
 }
 
@@ -104,26 +116,30 @@ export default function ConsumerDashboard() {
     startPolling(data.id)
   }
 
-  // Polling cada 2 segundos — llama getOrderById y actualiza posición y destino
   const startPolling = (orderId) => {
     if (pollingRef.current) clearInterval(pollingRef.current)
 
     const interval = setInterval(async () => {
-      const order = await getOrderById(orderId)
-      if (!order) return
+      try {
+const order = await getOrderById(orderId)
+console.log('dest:', order?.destination_lat, order?.destination_lng)
+console.log('delivery:', order?.delivery_lat, order?.delivery_lng)
 
-      if (order.delivery_lat && order.delivery_lng) {
-        setDeliveryPos({ lat: Number(order.delivery_lat), lng: Number(order.delivery_lng) })
-      }
+        if (order.delivery_lat && order.delivery_lng) {
+          setDeliveryPos({ lat: Number(order.delivery_lat), lng: Number(order.delivery_lng) })
+        }
 
-      if (order.destination_lat && order.destination_lng) {
-        setDestination({ lat: Number(order.destination_lat), lng: Number(order.destination_lng) })
-      }
+        if (order.destination_lat && order.destination_lng) {
+          setDestination(prev => prev || { lat: Number(order.destination_lat), lng: Number(order.destination_lng) })
+        }
 
-      if (order.status === 'Entregado') {
-        setDelivered(true)
-        clearInterval(interval)
-        pollingRef.current = null
+        if (order.status === 'Entregado') {
+          setDelivered(true)
+          clearInterval(interval)
+          pollingRef.current = null
+        }
+      } catch (err) {
+        console.error('Polling error:', err)
       }
     }, 2000)
 
@@ -218,6 +234,7 @@ export default function ConsumerDashboard() {
                     attribution='© OpenStreetMap contributors'
                   />
                   <DestinationPicker onPick={setDestination} />
+                  <MapAutoCenter position={deliveryPos} />
                   {destination && (
                     <Marker position={[destination.lat, destination.lng]}>
                       <Popup>📍 Delivery destination</Popup>
@@ -242,7 +259,7 @@ export default function ConsumerDashboard() {
                 <div className="card-header">
                   <span className="card-title">🔴 Live tracking</span>
                   <span className="card-meta">
-                    {delivered ? '✅ Delivered!' : 'Waiting for rider...'}
+                    {delivered ? '✅ Delivered!' : 'Tracking...'}
                   </span>
                 </div>
                 {delivered ? (
@@ -320,10 +337,14 @@ export default function ConsumerDashboard() {
                         <button
                           className="btn btn-outline"
                           style={{ padding: '4px 10px', fontSize: 11 }}
-                          onClick={() => {
+                          onClick={async () => {
                             setActiveOrder(order.id)
-                            setDeliveryPos(null)
                             setDelivered(false)
+                            setDeliveryPos(null)
+                            const orderData = await getOrderById(order.id)
+                            if (orderData?.destination_lat && orderData?.destination_lng) {
+                              setDestination({ lat: Number(orderData.destination_lat), lng: Number(orderData.destination_lng) })
+                            }
                             startPolling(order.id)
                           }}
                         >

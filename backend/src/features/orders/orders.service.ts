@@ -72,7 +72,7 @@ export const updateDeliveryPositionService = async (
       ST_DWithin(
         ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
         destination,
-        5
+        500
       ) as at_destination
   `
 

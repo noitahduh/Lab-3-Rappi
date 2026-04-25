@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext, useCallback, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getAvailableOrders, acceptOrder, getMyDeliveries } from '../../services/deliveryService'
@@ -15,7 +15,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-// Ícono rojo para el destino
 const destinationIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -23,6 +22,16 @@ const destinationIcon = new L.Icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
 })
+
+function MapAutoCenter({ position }) {
+  const map = useMapEvents({})
+  useEffect(() => {
+    if (position) {
+      map.setView([position.lat, position.lng], map.getZoom())
+    }
+  }, [position, map])
+  return null
+}
 
 const STEP = 0.0001
 
@@ -36,7 +45,7 @@ export default function DeliveryDashboard() {
 
   const [activeOrderId, setActiveOrderId] = useState(null)
   const [position, setPosition]           = useState({ lat: 4.711, lng: -74.0721 })
-  const [destination, setDestination]     = useState(null) // coordenadas del destino de la orden
+  const [destination, setDestination]     = useState(null)
   const [orderStatus, setOrderStatus]     = useState(null)
 
   const pendingPosition  = useRef(null)
@@ -117,15 +126,14 @@ export default function DeliveryDashboard() {
     setActiveOrderId(orderId)
     setOrderStatus('En entrega')
     setTab('mine')
-    // Cargar destino de la orden recién aceptada
     loadOrderDestination(orderId)
   }
 
-  // Carga las coordenadas de destino de la orden desde el backend
   const loadOrderDestination = async (orderId) => {
     const order = await getOrderById(orderId)
     if (order?.destination_lat && order?.destination_lng) {
-      setDestination({ lat: order.destination_lat, lng: order.destination_lng })
+      setDestination({ lat: Number(order.destination_lat), lng: Number(order.destination_lng) })
+      setPosition({ lat: Number(order.destination_lat), lng: Number(order.destination_lng) })
     }
   }
 
@@ -283,16 +291,19 @@ export default function DeliveryDashboard() {
                 ) : (
                   <>
                     <div style={{ padding: 12 }}>
-                      <MapContainer center={[position.lat, position.lng]} zoom={16} style={{ height: 400, borderRadius: 8 }}>
+                      <MapContainer
+                        center={[position.lat, position.lng]}
+                        zoom={17}
+                        style={{ height: 400, borderRadius: 8 }}
+                      >
                         <TileLayer
                           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                           attribution='© OpenStreetMap contributors'
                         />
-                        {/* Marcador azul: posición actual del domiciliario */}
+                        <MapAutoCenter position={position} />
                         <Marker position={[position.lat, position.lng]}>
                           <Popup>🚴 You are here</Popup>
                         </Marker>
-                        {/* Marcador rojo: destino del pedido */}
                         {destination && (
                           <Marker position={[destination.lat, destination.lng]} icon={destinationIcon}>
                             <Popup>📍 Delivery destination</Popup>
